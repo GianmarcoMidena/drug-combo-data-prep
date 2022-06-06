@@ -1,0 +1,13 @@
+python partition_data.py \
+  --n_partitions 10 \
+  --max_cell_lines 3 \
+  --reverse_drug_pairs \
+  --combinations_path "../input/combinations.csv" \
+  --drug_features_path "../input/drug_features.csv" \
+  --cell_line_features_path "../input/cell_line_features.csv" \
+  --output_dir "../output/" \
+  --drug_a_id_label "drug_a_id" \
+  --drug_b_id_label "drug_b_id" \
+  --cell_line_id_label "cell_line_id" \
+  --response_label "synergy" \
+  --seed 3
