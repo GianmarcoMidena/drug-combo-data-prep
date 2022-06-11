@@ -7,6 +7,11 @@ from dc_dataprep.partitioning.partitioner import Partitioner
 
 
 class RandomPartitioner(Partitioner):
+    """Random partitioner
+
+    Splits a drug combination dataset into k parts.
+    """
+
     def _split(self, combinations: pd.DataFrame, n_partitions: int, seed: Optional[int] = None):
         for train_indices, test_indices \
                 in KFold(n_splits=n_partitions, shuffle=False).split(combinations):

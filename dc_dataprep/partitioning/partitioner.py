@@ -7,6 +7,11 @@ import pandas as pd
 
 
 class Partitioner(ABC):
+    """Partitioner
+
+    Splits a drug combination dataset into k parts.
+    """
+
     def __init__(self, drug_a_id_label: str, drug_b_id_label: str, cell_line_id_label: str, response_label: str):
         self._drug_a_id_label = drug_a_id_label
         self._drug_b_id_label = drug_b_id_label
