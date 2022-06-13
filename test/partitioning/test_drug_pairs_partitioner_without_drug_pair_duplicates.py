@@ -5,11 +5,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from dc_dataprep.analyzer import Analyzer
+from dc_dataprep.filter import Filter
 from dc_dataprep.partitioning.drug_pairs_partitioner import DrugPairsPartitioner
 from dc_dataprep.partitioning.partitioner import Partitioner
+from dc_dataprep.transformer import Transformer
 
 _N_COMBINATIONS = 50
-_N_PARTITIONS = 10
+_N_SPLITS = 10
 _NON_CONSTANT_DRUG_FEATURES = (2, 3, 1, 5, 16, 10, 21, 18, 15)
 _NON_CONSTANT_GENES = (4, 7, 3, 2, 14, 8, 9)
 _DRUG_A_ID_LABEL = "drug a smiles"
@@ -27,8 +30,26 @@ _SEED = 3
 
 
 @pytest.fixture
-def partitioner() -> DrugPairsPartitioner:
-    yield DrugPairsPartitioner(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL, _RESPONSE_LABEL)
+def filter() -> Filter:
+    yield Filter(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL)
+
+
+@pytest.fixture
+def analyzer(filter: Filter) -> Analyzer:
+    yield Analyzer(filter,
+                   _DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL)
+
+
+@pytest.fixture
+def tx() -> Transformer:
+    yield Transformer(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL)
+
+
+@pytest.fixture
+def partitioner(filter: Filter, analyzer: Analyzer, tx: Transformer) -> DrugPairsPartitioner:
+    yield DrugPairsPartitioner(filter, analyzer, tx,
+                               _DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL, _RESPONSE_LABEL,
+                               n_splits=_N_SPLITS, seed=_SEED)
 
 
 @pytest.fixture
@@ -139,14 +160,9 @@ def test_monotherapies_absence(partitioner: DrugPairsPartitioner,
 def _partition(partitioner: Partitioner, combinations: pd.DataFrame, drug_features: pd.DataFrame,
                cell_line_features: pd.DataFrame, output_dir: Path, reverse_drug_pairs: bool = False,
                max_n_cell_lines: Optional[int] = None):
-    partitioner.partition(combinations=combinations,
-                          drug_features=drug_features,
-                          cell_line_features=cell_line_features,
-                          n_partitions=_N_PARTITIONS,
-                          output_dir=output_dir,
-                          reverse_drug_pairs=reverse_drug_pairs,
-                          max_n_cell_lines=max_n_cell_lines,
-                          seed=_SEED)
+    partitioner.partition(combinations=combinations, drug_features=drug_features, cell_line_features=cell_line_features,
+                          output_dir=output_dir, reverse_drug_pairs=reverse_drug_pairs,
+                          max_n_cell_lines=max_n_cell_lines)
 
 
 def _search_meta(output_dir: Path) -> Generator[Path, None, None]:

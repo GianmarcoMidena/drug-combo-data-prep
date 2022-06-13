@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -9,9 +8,7 @@ from dc_dataprep.partitioning.partitioner import Partitioner
 
 
 class GroupPartitioner(Partitioner, ABC):
-    """Group partitioner
-
-    Splits a drug combination dataset into k parts with non-overlapping groups.
+    """Split a drug combination dataset into n parts with non-overlapping groups.
 
     The same group will not appear in two different partitions (the number of
     distinct groups has to be at least equal to the number of partitions).
@@ -20,12 +17,11 @@ class GroupPartitioner(Partitioner, ABC):
     distinct groups is approximately the same in each fold.
     """
 
-    def _split(self, combinations: pd.DataFrame, n_partitions: int, seed: Optional[int] = None):
+    def _split(self, combinations: pd.DataFrame):
         groups = self._groups(combinations)
 
-        for train_indices, test_indices \
-                in GroupKFold(n_splits=n_partitions).split(groups, groups=groups):
-            yield test_indices
+        for _, indices in GroupKFold(n_splits=self._n_splits).split(combinations, groups=groups):
+            yield indices
 
     @abstractmethod
     def _groups(self, combinations: pd.DataFrame) -> np.ndarray:

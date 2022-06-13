@@ -6,11 +6,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from dc_dataprep.analyzer import Analyzer
+from dc_dataprep.filter import Filter
 from dc_dataprep.partitioning.partitioner import Partitioner
 from dc_dataprep.partitioning.random_partitioner import RandomPartitioner
+from dc_dataprep.transformer import Transformer
 
 _N_COMBINATIONS = 50
-_N_PARTITIONS = 10
+_N_SPLITS = 10
 _NON_CONSTANT_DRUG_FEATURES = (1, 2, 3, 5, 10, 14, 16, 18, 21)
 _NON_CONSTANT_GENES = (2, 3, 4, 7, 8, 9, 14)
 _DRUG_A_ID_LABEL = "drug a smiles"
@@ -28,8 +31,26 @@ _SEED = 3
 
 
 @pytest.fixture
-def partitioner() -> RandomPartitioner:
-    yield RandomPartitioner(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL, _RESPONSE_LABEL)
+def filter() -> Filter:
+    yield Filter(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL)
+
+
+@pytest.fixture
+def analyzer(filter: Filter) -> Analyzer:
+    yield Analyzer(filter,
+                   _DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL)
+
+
+@pytest.fixture
+def tx() -> Transformer:
+    yield Transformer(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL)
+
+
+@pytest.fixture
+def partitioner(filter: Filter, analyzer: Analyzer, tx: Transformer) -> RandomPartitioner:
+    yield RandomPartitioner(filter, analyzer, tx,
+                            _DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL, _RESPONSE_LABEL,
+                            n_splits=_N_SPLITS, seed=_SEED)
 
 
 @pytest.fixture
@@ -112,7 +133,7 @@ def test_nr_output_files(partitioner: RandomPartitioner, original_combinations_w
     _partition(partitioner, original_combinations_with_drug_pair_duplicates, drug_features, cell_line_features,
                output_dir)
 
-    assert len(list(output_dir.iterdir())) == _N_PARTITIONS * 2
+    assert len(list(output_dir.iterdir())) == _N_SPLITS * 2
 
 
 def test_output_file_names(partitioner: RandomPartitioner,
@@ -123,8 +144,8 @@ def test_output_file_names(partitioner: RandomPartitioner,
 
     assert set(map(lambda x: x.name, output_dir.iterdir())) == \
            {
-               *{f"features_p{i}.csv" for i in range(1, _N_PARTITIONS + 1)},
-               *{f"meta_p{i}.csv" for i in range(1, _N_PARTITIONS + 1)},
+               *{f"features_p{i}.csv" for i in range(1, _N_SPLITS + 1)},
+               *{f"meta_p{i}.csv" for i in range(1, _N_SPLITS + 1)},
            }
 
 
@@ -141,8 +162,8 @@ def test_nr_records_per_split(partitioner: RandomPartitioner,
 
     for partition_path in _search_meta(output_dir):
         partition_size = pd.read_csv(partition_path).shape[0]
-        assert partition_size >= floor(sample_size / _N_PARTITIONS)
-        assert partition_size <= ceil(sample_size / _N_PARTITIONS)
+        assert partition_size >= floor(sample_size / _N_SPLITS)
+        assert partition_size <= ceil(sample_size / _N_SPLITS)
 
 
 def test_nr_records_per_split_with_inverse_drug_pairs(partitioner: RandomPartitioner,
@@ -159,8 +180,8 @@ def test_nr_records_per_split_with_inverse_drug_pairs(partitioner: RandomPartiti
 
     for partition_path in _search_meta(output_dir):
         partition_size = pd.read_csv(partition_path).shape[0]
-        assert partition_size >= 2 * floor(sample_size / _N_PARTITIONS)
-        assert partition_size <= 2 * ceil(sample_size / _N_PARTITIONS)
+        assert partition_size >= 2 * floor(sample_size / _N_SPLITS)
+        assert partition_size <= 2 * ceil(sample_size / _N_SPLITS)
 
 
 def test_feature_names_by_partition(partitioner: RandomPartitioner,
@@ -309,14 +330,9 @@ def _test_top_n_most_frequent_cell_lines(cell_line_features, drug_features, max_
 def _partition(partitioner: Partitioner, combinations: pd.DataFrame, drug_features: pd.DataFrame,
                cell_line_features: pd.DataFrame, output_dir: Path, reverse_drug_pairs: bool = False,
                max_n_cell_lines: Optional[int] = None):
-    partitioner.partition(combinations=combinations,
-                          drug_features=drug_features,
-                          cell_line_features=cell_line_features,
-                          n_partitions=_N_PARTITIONS,
-                          output_dir=output_dir,
-                          reverse_drug_pairs=reverse_drug_pairs,
-                          max_n_cell_lines=max_n_cell_lines,
-                          seed=_SEED)
+    partitioner.partition(combinations=combinations, drug_features=drug_features, cell_line_features=cell_line_features,
+                          output_dir=output_dir, reverse_drug_pairs=reverse_drug_pairs,
+                          max_n_cell_lines=max_n_cell_lines)
 
 
 def _search_features(output_dir: Path) -> Generator[Path, None, None]:

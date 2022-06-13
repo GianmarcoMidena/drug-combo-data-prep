@@ -4,13 +4,16 @@ from pathlib import Path
 
 import pandas as pd
 
+from dc_dataprep.analyzer import Analyzer
+from dc_dataprep.filter import Filter
 from dc_dataprep.partitioning.random_partitioner import RandomPartitioner
 from dc_dataprep.partitioning.drug_pairs_partitioner import DrugPairsPartitioner
+from dc_dataprep.transformer import Transformer
 
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
     arg_parser = ArgumentParser()
-    arg_parser.add_argument("--n_partitions", type=int, required=True)
+    arg_parser.add_argument("--n_splits", type=int, required=True)
     arg_parser.add_argument("--combinations_path", type=Path, required=True)
     arg_parser.add_argument("--drug_features_path", type=Path, required=True)
     arg_parser.add_argument("--cell_line_features_path", type=Path, required=True)
@@ -34,15 +37,26 @@ if __name__ == "__main__":
     else:
         partitioner_class = RandomPartitioner
 
-    partitioner_class(drug_a_id_label=args.drug_a_id_label,
+    filter = Filter(drug_a_id_label=args.drug_a_id_label,
+                    drug_b_id_label=args.drug_b_id_label)
+
+    analyzer = Analyzer(filter=filter,
+                        drug_a_id_label=args.drug_a_id_label,
+                        drug_b_id_label=args.drug_b_id_label,
+                        cell_line_id_label=args.cell_line_id_label)
+
+    tx = Transformer(drug_a_id_label=args.drug_a_id_label,
+                     drug_b_id_label=args.drug_b_id_label)
+
+    partitioner_class(filter=filter,
+                      analyzer=analyzer,
+                      tx=tx,
+                      drug_a_id_label=args.drug_a_id_label,
                       drug_b_id_label=args.drug_b_id_label,
                       cell_line_id_label=args.cell_line_id_label,
-                      response_label=args.response_label) \
-        .partition(combinations=combinations,
-                   drug_features=drug_features,
-                   cell_line_features=cell_line_features,
-                   n_partitions=args.n_partitions,
-                   output_dir=args.output_dir,
-                   max_n_cell_lines=args.max_cell_lines,
-                   reverse_drug_pairs=args.reverse_drug_pairs,
-                   seed=args.seed)
+                      response_label=args.response_label,
+                      n_splits=args.n_splits,
+                      seed=args.seed) \
+        .partition(combinations=combinations, drug_features=drug_features, cell_line_features=cell_line_features,
+                   output_dir=args.output_dir, reverse_drug_pairs=args.reverse_drug_pairs,
+                   max_n_cell_lines=args.max_cell_lines)

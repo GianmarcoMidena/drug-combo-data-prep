@@ -1,5 +1,5 @@
 python partition_data.py \
-  --n_partitions 10 \
+  --n_splits 10 \
   --max_cell_lines 3 \
   --reverse_drug_pairs \
   --combinations_path "../input/combinations.csv" \

@@ -5,9 +5,7 @@ from dc_dataprep.partitioning.group_partitioner import GroupPartitioner
 
 
 class DrugPairsPartitioner(GroupPartitioner):
-    """Drug pairs partitioner
-
-    Splits a drug combination dataset into k parts with non-overlapping drug pairs.
+    """Split a drug combination dataset into n parts with non-overlapping drug pairs.
 
     The same drug pairs will not appear in two different partitions (the number of
     distinct drug pairs has to be at least equal to the number of partitions).

@@ -6,10 +6,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from dc_dataprep.analyzer import Analyzer
+from dc_dataprep.filter import Filter
 from dc_dataprep.partitioning.drug_pairs_partitioner import DrugPairsPartitioner
+from dc_dataprep.transformer import Transformer
 
 _N_COMBINATIONS = 43
-_N_PARTITIONS = 10
+_N_SPLITS = 10
 _NON_CONSTANT_DRUG_FEATURES = (2, 3, 1, 5, 16, 10, 21, 18, 15)
 _NON_CONSTANT_GENES = (4, 7, 3, 2, 14, 8, 9)
 _DRUG_A_ID_LABEL = "drug a smiles"
@@ -27,8 +30,26 @@ _SEED = 3
 
 
 @pytest.fixture
-def partitioner() -> DrugPairsPartitioner:
-    yield DrugPairsPartitioner(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL, _RESPONSE_LABEL)
+def filter() -> Filter:
+    yield Filter(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL)
+
+
+@pytest.fixture
+def analyzer(filter: Filter) -> Analyzer:
+    yield Analyzer(filter,
+                   _DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL)
+
+
+@pytest.fixture
+def tx() -> Transformer:
+    yield Transformer(_DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL)
+
+
+@pytest.fixture
+def partitioner(filter: Filter, analyzer: Analyzer, tx: Transformer) -> DrugPairsPartitioner:
+    yield DrugPairsPartitioner(filter, analyzer, tx,
+                               _DRUG_A_ID_LABEL, _DRUG_B_ID_LABEL, _CELL_LINE_ID_LABEL, _RESPONSE_LABEL,
+                               n_splits=_N_SPLITS, seed=_SEED)
 
 
 @pytest.fixture
@@ -112,7 +133,7 @@ def test_nr_output_files(partitioner: DrugPairsPartitioner,
     _partition(partitioner, original_combinations_with_drug_pair_duplicates, drug_features, cell_line_features,
                output_dir)
 
-    assert len(list(output_dir.iterdir())) == _N_PARTITIONS * 2
+    assert len(list(output_dir.iterdir())) == _N_SPLITS * 2
 
 
 def test_output_file_names(partitioner: DrugPairsPartitioner,
@@ -123,8 +144,8 @@ def test_output_file_names(partitioner: DrugPairsPartitioner,
 
     assert set(map(lambda x: x.name, output_dir.iterdir())) == \
            {
-               *{f"features_p{i}.csv" for i in range(1, _N_PARTITIONS + 1)},
-               *{f"meta_p{i}.csv" for i in range(1, _N_PARTITIONS + 1)},
+               *{f"features_p{i}.csv" for i in range(1, _N_SPLITS + 1)},
+               *{f"meta_p{i}.csv" for i in range(1, _N_SPLITS + 1)},
            }
 
 
@@ -143,8 +164,8 @@ def test_avg_nr_records_per_split(partitioner: DrugPairsPartitioner,
     for partition_path in _search_meta(output_dir):
         partition_sizes_sum += pd.read_csv(partition_path).shape[0]
 
-    assert partition_sizes_sum / _N_PARTITIONS >= floor(sample_size / _N_PARTITIONS)
-    assert partition_sizes_sum / _N_PARTITIONS <= ceil(sample_size / _N_PARTITIONS)
+    assert partition_sizes_sum / _N_SPLITS >= floor(sample_size / _N_SPLITS)
+    assert partition_sizes_sum / _N_SPLITS <= ceil(sample_size / _N_SPLITS)
 
 
 def test_avg_nr_records_per_split_with_inverse_drug_pairs(partitioner: DrugPairsPartitioner,
@@ -163,8 +184,8 @@ def test_avg_nr_records_per_split_with_inverse_drug_pairs(partitioner: DrugPairs
     for partition_path in _search_meta(output_dir):
         partition_sizes_sum += pd.read_csv(partition_path).shape[0]
 
-    assert partition_sizes_sum / _N_PARTITIONS >= 2 * floor(sample_size / _N_PARTITIONS)
-    assert partition_sizes_sum / _N_PARTITIONS <= 2 * ceil(sample_size / _N_PARTITIONS)
+    assert partition_sizes_sum / _N_SPLITS >= 2 * floor(sample_size / _N_SPLITS)
+    assert partition_sizes_sum / _N_SPLITS <= 2 * ceil(sample_size / _N_SPLITS)
 
 
 def test_max_nr_records_per_split(partitioner: DrugPairsPartitioner,
@@ -180,7 +201,7 @@ def test_max_nr_records_per_split(partitioner: DrugPairsPartitioner,
 
     for partition_path in _search_meta(output_dir):
         partition_size = pd.read_csv(partition_path).shape[0]
-        assert partition_size <= ceil(sample_size / _N_PARTITIONS)
+        assert partition_size <= ceil(sample_size / _N_SPLITS)
 
 
 def test_max_nr_records_per_split_with_inverse_drug_pairs(partitioner: DrugPairsPartitioner,
@@ -197,7 +218,7 @@ def test_max_nr_records_per_split_with_inverse_drug_pairs(partitioner: DrugPairs
 
     for partition_path in _search_meta(output_dir):
         partition_size = pd.read_csv(partition_path).shape[0]
-        assert partition_size <= 2 * ceil(sample_size / _N_PARTITIONS)
+        assert partition_size <= 2 * ceil(sample_size / _N_SPLITS)
 
 
 def test_min_nr_records_per_split(partitioner: DrugPairsPartitioner,
@@ -335,14 +356,9 @@ def _test_top_n_most_frequent_cell_lines(cell_line_features, drug_features, max_
 def _partition(partitioner: DrugPairsPartitioner, combinations: pd.DataFrame, drug_features: pd.DataFrame,
                cell_line_features: pd.DataFrame, output_dir: Path, reverse_drug_pairs: bool = False,
                max_n_cell_lines: Optional[int] = None):
-    partitioner.partition(combinations=combinations,
-                          drug_features=drug_features,
-                          cell_line_features=cell_line_features,
-                          n_partitions=_N_PARTITIONS,
-                          output_dir=output_dir,
-                          reverse_drug_pairs=reverse_drug_pairs,
-                          max_n_cell_lines=max_n_cell_lines,
-                          seed=_SEED)
+    partitioner.partition(combinations=combinations, drug_features=drug_features, cell_line_features=cell_line_features,
+                          output_dir=output_dir, reverse_drug_pairs=reverse_drug_pairs,
+                          max_n_cell_lines=max_n_cell_lines)
 
 
 def _search_features(output_dir: Path) -> Generator[Path, None, None]:
